@@ -7,13 +7,14 @@
 #include "math.h"
 #include "led.h"
 #include "rtc.h" 
+#include "common.h"
+
 int count = 0;
 int b = 0; 
 LK_Can_Rec_Link Can_Rec_Link;
-
 Can_Rec_Node can_msg_list[CAN_REC_SIZE];
 uint32_t warn_timestamp;
-
+u8 is_test = 0;
 
 union ObjMessage{
 	unsigned long long value;
@@ -79,7 +80,7 @@ void protocol_init(void)
 }
 
 
-u8 protocol_handler(u8 *buf, CanRxMsg *RxMessage)
+void protocol_handler(u8 *buf, CanRxMsg *RxMessage)
 {
 	//printf("time:%d\r\n",timecount);
 	while(Can_Rec_Link.tail != Can_Rec_Link.head)
@@ -107,6 +108,7 @@ u8 protocol_handler(u8 *buf, CanRxMsg *RxMessage)
 						float y;
 						stObjInfoMsg *pMsg = (stObjInfoMsg *)&msgdata;
 						objNode target;
+						float speed_limit = SPEED_LIMIT;
 						target.ID = pMsg->objId;
 						target.distance = (float)pMsg->range / 5;
 						target.speed = pMsg->velocity & 0x400 ? (float)((int16_t)(pMsg->velocity | 0xF800)) / 5
@@ -116,9 +118,10 @@ u8 protocol_handler(u8 *buf, CanRxMsg *RxMessage)
 						target.SNR = (pMsg->snr & 0xFF) / 2;
 						x = target.distance * sinf( target.angle/180.0f*3.14159f);
 						y = target.distance * cosf( target.angle/180.0f*3.14159f);
-
+						
+						if(is_test) speed_limit = SPEED_LIMIT_TEST;
 						if( x < 1.5f && x > -1.5f && y < 130 && y > 0){
-							if(target.speed < -0.11f){ //40km/h
+							if(target.speed < speed_limit){ //40km/h
 								printf("A(%d) : id=%d , dis=%f,spd=%f,ag=%f,SNR=%d,x=%f,y=%f,dyprop:%02x\r\n",
 											count,target.ID,target.distance,target.speed,target.angle,target.SNR,x,y,pMsg->dynProp);
 									printf("Warn(%d) : id=%d , dis=%.2f,spd=%.2f,ag=%.2f,SNR=%d,x=%.2f,y=%.2f\r\n",
@@ -158,7 +161,16 @@ u8 protocol_handler(u8 *buf, CanRxMsg *RxMessage)
 				count = 0;
 		}
 	}
-	return RxMessage->DLC;	
+}
+
+void set_is_test(u8 status)
+{
+	is_test = status;
+	printf("is_test:%d\r\n",is_test);
+}
+void set_lane_mode(u8 mode)
+{
+	//LANE_MODE = mode;
 }
 
 //由于定义的结构体是小端模式，需要进行转换，8字节
